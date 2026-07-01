@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>swe-agent</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0b0e14;
+    --surface:#11151d;
+    --border:#212836;
+    --border-soft:#1a2029;
+    --text:#d7dce3;
+    --muted:#5c6577;
+    --accent:#7c9eff;
+    --accent-dim:#33406b;
+    --add:#4fd68a;
+    --remove:#ff6b6b;
+    --warn:#ffb454;
+  }
+  *{margin:0;padding:0;box-sizing:border-box;}
+  body{
+    font-family:'JetBrains Mono',monospace;
+    background:
+      radial-gradient(ellipse 900px 500px at 15% -10%, rgba(124,158,255,0.07), transparent 60%),
+      var(--bg);
+    color:var(--text);
+    min-height:100vh;
+    padding:56px 20px 80px;
+  }
+  .container{max-width:720px;margin:0 auto;}
+
+  /* ---- Header ---- */
+  .eyebrow{
+    color:var(--muted);
+    font-size:0.72rem;
+    letter-spacing:0.12em;
+    text-transform:uppercase;
+    margin-bottom:10px;
+  }
+  h1{
+    font-size:1.5rem;
+    font-weight:700;
+    color:var(--text);
+    letter-spacing:-0.02em;
+    margin-bottom:6px;
+  }
+  h1 span{color:var(--accent);}
+  p.sub{color:var(--muted);font-size:0.83rem;line-height:1.6;max-width:52ch;margin-bottom:32px;}
+
+  /* ---- Terminal prompt input ---- */
+  .prompt-shell{
+    background:var(--surface);
+    border:1px solid var(--border);
+    border-radius:8px;
+    padding:14px 16px;
+    margin-bottom:36px;
+    box-shadow:0 0 0 1px rgba(0,0,0,0.2);
+  }
+  .prompt-row{display:flex;align-items:center;gap:10px;}
+  .prompt-glyph{color:var(--add);font-weight:600;font-size:0.9rem;user-select:none;}
+  .prompt-cmd{color:var(--muted);font-size:0.85rem;white-space:nowrap;}
+  .prompt-input-wrap{
+    flex:1;display:flex;align-items:center;
+    border-bottom:1px solid transparent;
+  }
+  input{
+    flex:1;background:transparent;border:none;color:var(--text);
+    font-family:'JetBrains Mono',monospace;font-size:0.85rem;outline:none;
+    padding:2px 0;
+  }
+  input::placeholder{color:#3a4152;}
+  .cursor{
+    width:7px;height:16px;background:var(--accent);
+    animation:blink 1s steps(1) infinite;flex-shrink:0;
+  }
+  input:focus ~ .cursor, .prompt-input-wrap:focus-within .cursor{display:block;}
+  @keyframes blink{50%{opacity:0;}}
+
+  button{
+    background:transparent;
+    color:var(--add);
+    border:1px solid var(--add);
+    padding:6px 14px;
+    border-radius:5px;
+    cursor:pointer;
+    font-family:'JetBrains Mono',monospace;
+    font-size:0.78rem;
+    font-weight:600;
+    letter-spacing:0.02em;
+    transition:background 0.15s, color 0.15s;
+    flex-shrink:0;
+  }
+  button:hover:not(:disabled){background:var(--add);color:#062112;}
+  button:disabled{border-color:var(--border);color:var(--muted);cursor:not-allowed;}
+
+  .status-line{
+    margin-top:10px;padding-top:10px;border-top:1px dashed var(--border-soft);
+    font-size:0.78rem;color:var(--muted);display:flex;align-items:center;gap:8px;
+  }
+  .status-dot{width:6px;height:6px;border-radius:50%;background:var(--muted);flex-shrink:0;}
+  .status-line.live .status-dot{background:var(--accent);animation:pulse 1.4s ease-in-out infinite;}
+  .status-line.ok .status-dot{background:var(--add);animation:none;}
+  .status-line.err .status-dot{background:var(--remove);animation:none;}
+  @keyframes pulse{0%,100%{opacity:1;transform:scale(1);}50%{opacity:0.4;transform:scale(1.6);}}
+
+  /* ---- Commit graph trunk ---- */
+  .graph{position:relative;}
+  .node{
+    position:relative;
+    padding-left:34px;
+    padding-bottom:28px;
+  }
+  .node:last-child{padding-bottom:0;}
+  .node::before{ /* the trunk line */
+    content:'';
+    position:absolute;
+    left:6px;top:16px;bottom:-12px;
+    width:1px;
+    background:var(--border);
+  }
+  .node:last-child::before{display:none;}
+  .node-dot{
+    position:absolute;left:0;top:2px;
+    width:13px;height:13px;border-radius:50%;
+    background:var(--bg);
+    border:2px solid var(--border);
+    transition:border-color 0.2s, background 0.2s, box-shadow 0.2s;
+    z-index:1;
+  }
+  .node.active .node-dot{
+    border-color:var(--accent);
+    box-shadow:0 0 0 4px rgba(124,158,255,0.14);
+    animation:pulse-ring 1.3s ease-in-out infinite;
+  }
+  @keyframes pulse-ring{0%,100%{box-shadow:0 0 0 4px rgba(124,158,255,0.14);}50%{box-shadow:0 0 0 7px rgba(124,158,255,0.05);}}
+  .node.done .node-dot{border-color:var(--add);background:var(--add);}
+  .node.error .node-dot{border-color:var(--remove);background:var(--remove);}
+
+  .node-label{
+    font-size:0.72rem;letter-spacing:0.08em;text-transform:uppercase;
+    color:var(--muted);margin-bottom:6px;
+    transition:color 0.2s;
+  }
+  .node.active .node-label, .node.done .node-label{color:var(--text);}
+
+  .node-body{display:none;}
+  .node.filled .node-body{display:block;}
+
+  .card{
+    background:var(--surface);
+    border:1px solid var(--border);
+    border-radius:7px;
+    padding:13px 15px;
+    font-size:0.83rem;
+    line-height:1.6;
+    color:var(--text);
+  }
+
+  .issue-title{color:var(--text);}
+  .plan-text{white-space:pre-wrap;color:#b9c0cc;font-size:0.8rem;}
+
+  .file-list{display:flex;flex-direction:column;gap:4px;}
+  .file-row{font-size:0.8rem;color:var(--muted);}
+  .file-row.diff{color:var(--add);}
+  .file-row.diff::before{content:'M  ';color:var(--add);font-weight:600;}
+  .file-row:not(.diff)::before{content:'\00B7  ';color:var(--border);}
+
+  .retry-badge{
+    display:inline-flex;align-items:center;gap:6px;
+    margin-top:8px;
+    font-size:0.72rem;color:var(--warn);
+    padding-left:2px;
+  }
+  .retry-badge::before{
+    content:'\21B3';color:var(--warn);
+  }
+
+  .pr-link{
+    color:var(--accent);text-decoration:none;font-size:0.83rem;
+    border-bottom:1px solid var(--accent-dim);
+  }
+  .pr-link:hover{border-bottom-color:var(--accent);}
+
+  .error-text{color:var(--remove);font-size:0.83rem;}
+
+  @media (prefers-reduced-motion: reduce){
+    .cursor,.status-line.live .status-dot,.node.active .node-dot{animation:none;}
+  }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <div class="eyebrow">swe-agent &middot; issue-to-pr</div>
+  <h1>Autonomous <span>SWE Agent</span></h1>
+  <p class="sub">Paste a GitHub issue URL. The agent reads the codebase, drafts a fix, and opens a pull request &mdash; you watch it work in real time.</p>
+
+  <div class="prompt-shell">
+    <div class="prompt-row">
+      <span class="prompt-glyph">&gt;</span>
+      <span class="prompt-cmd">agent run --issue</span>
+      <div class="prompt-input-wrap">
+        <input id="issueUrl" type="text" placeholder="https://github.com/owner/repo/issues/123" autocomplete="off" />
+        <div class="cursor"></div>
+      </div>
+      <button id="runBtn" onclick="run()">run</button>
+    </div>
+    <div class="status-line" id="statusLine">
+      <div class="status-dot"></div>
+      <span id="statusText">waiting for input</span>
+    </div>
+  </div>
+
+  <div class="graph">
+
+    <div class="node" id="node-issue">
+      <div class="node-dot"></div>
+      <div class="node-label">Issue</div>
+      <div class="node-body"><div class="card"><span class="issue-title" id="issueTitle"></span></div></div>
+    </div>
+
+    <div class="node" id="node-files">
+      <div class="node-dot"></div>
+      <div class="node-label">Relevant files</div>
+      <div class="node-body"><div class="card"><div class="file-list" id="filesList"></div></div></div>
+    </div>
+
+    <div class="node" id="node-plan">
+      <div class="node-dot"></div>
+      <div class="node-label">Fix plan</div>
+      <div class="node-body"><div class="card"><div class="plan-text" id="planText"></div></div></div>
+    </div>
+
+    <div class="node" id="node-changes">
+      <div class="node-dot"></div>
+      <div class="node-label">Changes written</div>
+      <div class="node-body">
+        <div class="card"><div class="file-list" id="changesList"></div></div>
+        <div class="retry-badge" id="retryBadge" style="display:none;"></div>
+      </div>
+    </div>
+
+    <div class="node" id="node-pr">
+      <div class="node-dot"></div>
+      <div class="node-label">Pull request</div>
+      <div class="node-body"><div class="card"><a class="pr-link" id="prLink" target="_blank"></a></div></div>
+    </div>
+
+    <div class="node" id="node-error">
+      <div class="node-dot"></div>
+      <div class="node-label">Error</div>
+      <div class="node-body"><div class="card"><span class="error-text" id="errorText"></span></div></div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+  function activate(id){
+    const el = document.getElementById(id);
+    document.querySelectorAll('.node.active').forEach(n => { if(n!==el) n.classList.remove('active'); });
+    el.classList.add('active','filled');
+  }
+  function complete(id){ document.getElementById(id).classList.remove('active'); document.getElementById(id).classList.add('done'); }
+  function fail(id){ document.getElementById(id).classList.remove('active'); document.getElementById(id).classList.add('error','filled'); }
+  function set(id, html){ document.getElementById(id).innerHTML = html; }
+  function setStatus(text, mode){
+    set('statusText', text);
+    const line = document.getElementById('statusLine');
+    line.className = 'status-line' + (mode ? ' ' + mode : '');
+  }
+
+  async function run(){
+    const url = document.getElementById('issueUrl').value.trim();
+    if(!url) return;
+
+    document.getElementById('runBtn').disabled = true;
+    ['node-issue','node-files','node-plan','node-changes','node-pr','node-error'].forEach(id=>{
+      const n = document.getElementById(id);
+      n.classList.remove('active','done','error','filled');
+    });
+    document.getElementById('retryBadge').style.display = 'none';
+    setStatus('starting\u2026', 'live');
+
+    const response = await fetch('/run', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ issue_url: url })
+    });
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+
+    while(true){
+      const { done, value } = await reader.read();
+      if(done) break;
+
+      const text = decoder.decode(value);
+      const lines = text.split('\n').filter(l => l.startsWith('data:'));
+
+      for(const line of lines){
+        const { event, data } = JSON.parse(line.slice(5));
+
+        if(event === 'status'){ setStatus(data.message, 'live'); }
+
+        if(event === 'issue'){
+          activate('node-issue'); set('issueTitle', data.title); complete('node-issue');
+        }
+        if(event === 'files'){
+          activate('node-files');
+          set('filesList', data.files.map(f => `<div class="file-row">${f}</div>`).join(''));
+          complete('node-files');
+        }
+        if(event === 'plan'){
+          activate('node-plan'); set('planText', data.plan); complete('node-plan');
+        }
+        if(event === 'changes'){
+          activate('node-changes');
+          set('changesList', data.files.map(f => `<div class="file-row diff">${f}</div>`).join(''));
+          complete('node-changes');
+        }
+        if(event === 'retries'){
+          const badge = document.getElementById('retryBadge');
+          badge.style.display = 'inline-flex';
+          badge.textContent = `retried ${data.count}\u00D7`;
+          badge.style.setProperty('--x','');
+          badge.innerHTML = `retried ${data.count}\u00D7`;
+        }
+        if(event === 'pr'){
+          activate('node-pr');
+          const el = document.getElementById('prLink');
+          el.href = data.url; el.textContent = data.url;
+          complete('node-pr');
+        }
+        if(event === 'error'){
+          fail('node-error'); set('errorText', data.message);
+          setStatus('failed', 'err');
+        }
+        if(event === 'done'){
+          setStatus('done', 'ok');
+          document.getElementById('runBtn').disabled = false;
+        }
+      }
+    }
+  }
+</script>
+</body>
+</html>
