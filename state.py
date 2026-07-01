@@ -6,9 +6,11 @@ class AgentState(TypedDict):
     issue_body: str
     repo_owner: str
     repo_name: str
-    relevant_files: List[dict]  # [{"path": str, "content": str}]
+    relevant_files: List[dict]
     plan: Optional[str]
-    code_changes: Optional[dict]  # {filepath: new_content}
+    code_changes: Optional[dict]
+    validation_error: Optional[str]
+    retry_count: int
     test_results: Optional[str]
     pr_url: Optional[str]
     error: Optional[str]
